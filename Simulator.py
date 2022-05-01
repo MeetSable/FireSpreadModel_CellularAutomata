@@ -1,4 +1,6 @@
 from tkinter import font
+
+from matplotlib.pyplot import text
 from FireSpreadModel import FireSpreadModel
 import pygame
 import time
@@ -13,24 +15,26 @@ BLACK = (0,0,0)
 pygame.init()
 pygame.font.init()
 
-topBar = 40
+sideBar = 500
 font = pygame.font.Font('./font.ttf', 32)
 
 class Simulator():
 
-    def __init__(self, n, cell) -> None:
+    def __init__(self) -> None:
         self.backgroundColor = BLACK
-        self.windowWidth = n*cell
-        self.cellSize = cell
-        self.screen = pygame.display.set_mode((self.windowWidth, self.windowWidth + topBar))
+        self.n = 100
+        self.cellSize = 5
+        self.windowWidth = self.n * self.cellSize
+        self.screen = pygame.display.set_mode((self.windowWidth + sideBar, self.windowWidth ))
         self.running = True
         self.frame = 0
-        self.frameMax = 50
         self.play = False
-        self.playBackSpeed = 0.5
+        self.fps = float(10)
+        self.playBackSpeed = float(1/self.fps)
         self.start = time.time()
-        self.fireModel = FireSpreadModel(n, 0.8, 0.01, 0.000001, 0.1, self.frameMax, 'center')
+        self.fireModel = FireSpreadModel(self.n, 0.8, 0.001, 0.00, 0.3, 0, 'random', 'simple', wind=True, windDir='N',windLevel=1, varyDirection=True)
         self.fireModel.run()
+        self.frameMax = self.fireModel.time
 
     
     def run(self):
@@ -41,15 +45,33 @@ class Simulator():
 
     def Render(self):
         self.drawGrid()
-        self.showCurrentFrame()
+        self.Text('t = {}  (t_max = {})'.format(self.frame, self.frameMax), 0)
+        self.Text('Speed: {}'.format(self.fps), 1)
+
+        if self.play:
+            self.Text('state: play', 2)
+        else:
+            self.Text('state: pause', 2)
+        
+        if self.fireModel.wind:
+            if(self.fireModel.windDirArr[self.frame] == 'N'):
+                self.Text('Wind: N (Up)', 3)
+            elif(self.fireModel.windDirArr[self.frame] == 'S'):
+                self.Text('Wind: S (Down)', 3)
+            elif(self.fireModel.windDirArr[self.frame] == 'E'):
+                self.Text('Wind: E (Right)', 3)
+            elif(self.fireModel.windDirArr[self.frame] == 'W'):
+                self.Text('Wind: W (Left)', 3)
+        else:
+            self.Text('Wind: None', 3)
         pygame.display.update()
         self.screen.fill(self.backgroundColor)
     
     def Update(self):
         if(self.play & (time.time()-self.start >= self.playBackSpeed)):
             self.start = time.time()
-            self.frame = min(self.frame + 1, self.frameMax)
-            if self.frame == self.frameMax:
+            self.frame = min(self.frame + 1, self.frameMax-1)
+            if self.frame == self.frameMax-1:
                 self.play = ~self.play
 
     def event(self):
@@ -62,27 +84,39 @@ class Simulator():
                 if event.key == pygame.K_SPACE:
                     self.start = time.time()
                     self.play = ~self.play
+                if event.key == pygame.K_p:
+                    self.fps += 1
+                    self.fps = min(self.fps, 60)
+                    self.playBackSpeed = 1/self.fps
+                if event.key == pygame.K_o:
+                    self.fps -= 1
+                    self.fps = max(self.fps, 1)
+                    self.playBackSpeed = 1/self.fps
+                if event.key == pygame.K_r:
+                    self.frame = 0
             if event.type == pygame.QUIT:
                 self.running = False
-
-    def showCurrentFrame(self):
-        self.text = font.render('t = {}'.format(self.frame), True, WHITE)
-        self.textRect = self.text.get_rect()
-        self.screen.blit(self.text,self.textRect)
+    
+    def Text(self, tex, line):
+        text = font.render(tex, True, WHITE)
+        textRect = text.get_rect()
+        textRect.x = self.windowWidth + 5
+        textRect.y += line*textRect.height
+        self.screen.blit(text, textRect)
 
     def drawGrid(self):
         for i in range(self.fireModel.n):
             for j in range(self.fireModel.n):
-                rect = pygame.Rect(i*self.cellSize, j*self.cellSize + topBar, self.cellSize, self.cellSize)
+                rect = pygame.Rect(i*self.cellSize, j*self.cellSize, self.cellSize, self.cellSize)
                 currentCellState = self.fireModel.grids[self.frame][i][j]
                 if (currentCellState == 0):
                     pygame.draw.rect(self.screen, BLACK, rect)
                 elif (currentCellState == 1):
                     pygame.draw.rect(self.screen, TREE, rect)
-                elif (currentCellState == 2):
+                elif (currentCellState >= 2):
                     pygame.draw.rect(self.screen, BURNING, rect)
-        pygame.draw.rect(self.screen, WHITE, pygame.Rect(0,topBar,self.windowWidth,self.windowWidth),1)
+        pygame.draw.rect(self.screen, WHITE, pygame.Rect(0, 0, self.windowWidth,self.windowWidth),1)
 
 
-sim = Simulator(17, 20)
+sim = Simulator()
 sim.run()
